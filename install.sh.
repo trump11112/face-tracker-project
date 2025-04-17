@@ -1,0 +1,105 @@
+#!/bin/bash
+
+# Exit immediately if a command exits with a non-zero status.
+set -e
+
+# --- Configuration (Modify these to match your project) ---
+REPO_URL="[YOUR_REPOSITORY_URL_HERE]"
+PROJECT_DIR="face_tracker_simple_install"
+DEFAULT_CONFIG_FILE="config_default.yaml"
+CONFIG_DIR="config"
+CONFIG_FILE="$CONFIG_DIR/config.yaml"
+REQUIREMENTS_FILE="requirements.txt"
+RUN_SCRIPT="scripts/run_tracker.py"
+# --- End Configuration ---
+
+echo "Starting the complete face tracker installation..."
+
+# Function to display error messages and exit
+handle_error() {
+  echo "Error: $1" >&2 # Redirect to standard error
+  exit 1
+}
+
+# Check for Git and install if missing
+install_git() {
+  echo "Git not found. Attempting to install..."
+  if [[ "$(uname -s)" == "Linux" ]]; then
+    sudo apt update && sudo apt install -y git || handle_error "Failed to install git on Linux."
+  elif [[ "$(uname -s)" == "Darwin" ]]; then
+    brew install git || handle_error "Failed to install git on macOS."
+  else
+    handle_error "Git installation not supported on this system. Please install it manually."
+  fi
+}
+
+# Check for Python 3 and pip3 and install if missing
+install_python() {
+  echo "Python 3 and/or pip3 not found. Attempting to install..."
+  if [[ "$(uname -s)" == "Linux" ]]; then
+    sudo apt update && sudo apt install -y python3 python3-pip python3-venv || handle_error "Failed to install Python 3 and pip3 on Linux."
+  elif [[ "$(uname -s)" == "Darwin" ]]; then
+    brew install python3 || handle_error "Failed to install Python 3 on macOS."
+    # macOS usually includes pip with Python 3
+  else
+    handle_error "Python 3 and pip3 installation not supported on this system. Please install them manually."
+  fi
+}
+
+# Check for Git and install if not found
+if ! command -v git &> /dev/null; then
+  install_git
+fi
+
+# Clone the repository
+echo "Cloning the repository from $REPO_URL to $PROJECT_DIR..."
+git clone "$REPO_URL" "$PROJECT_DIR" || handle_error "Failed to clone the repository."
+cd "$PROJECT_DIR" || handle_error "Failed to change directory to $PROJECT_DIR."
+
+# Check for Python 3 and pip3
+if ! command -v python3 &> /dev/null || ! command -v pip3 &> /dev/null; then
+  install_python
+fi
+
+# Create and activate virtual environment
+echo "Creating and activating virtual environment..."
+python3 -m venv venv || handle_error "Failed to create virtual environment."
+source venv/bin/activate || handle_error "Failed to activate virtual environment."
+
+# Install dependencies
+if [ -f "$REQUIREMENTS_FILE" ]; then
+  echo "Installing dependencies from $REQUIREMENTS_FILE..."
+  pip3 install -r "$REQUIREMENTS_FILE" || handle_error "Failed to install dependencies."
+else
+  echo "Warning: $REQUIREMENTS_FILE not found. Please install dependencies manually."
+fi
+
+# Copy default configuration if config.yaml doesn't exist
+if [ ! -f "$CONFIG_FILE" ] && [ -f "$CONFIG_DIR/$DEFAULT_CONFIG_FILE" ]; then
+  echo "Copying default configuration file ($DEFAULT_CONFIG_FILE to $CONFIG_FILE)..."
+  mkdir -p "$CONFIG_DIR" || handle_error "Failed to create config directory."
+  cp "$CONFIG_DIR/$DEFAULT_CONFIG_FILE" "$CONFIG_FILE" || handle_error "Failed to copy configuration file."
+elif [ ! -f "$CONFIG_FILE" ]; then
+  echo "Warning: $CONFIG_FILE not found and no $DEFAULT_CONFIG_FILE to copy."
+  echo "Please create '$CONFIG_FILE' in '$CONFIG_DIR' with your configuration."
+fi
+
+echo ""
+echo "-------------------- INSTALLATION COMPLETE! --------------------"
+echo ""
+echo "The project has been cloned to '$PROJECT_DIR'."
+echo "A virtual environment has been created and dependencies installed (if '$REQUIREMENTS_FILE' was found)."
+echo ""
+if [ -f "$CONFIG_FILE" ]; then
+  echo "The configuration file is located at '$CONFIG_FILE'."
+  echo "PLEASE OPEN THIS FILE NOW WITH A TEXT EDITOR and carefully review and adjust the settings,"
+  echo "especially the camera RTSP URL and servo configurations."
+else
+  echo "Please create the configuration file at '$CONFIG_FILE' based on the project's documentation."
+fi
+echo ""
+echo "Once configured, navigate to the '$PROJECT_DIR' directory and run the face tracker using:"
+echo ""
+echo "  python $RUN_SCRIPT"
+echo ""
+echo "-------------------------------------------------------------"
